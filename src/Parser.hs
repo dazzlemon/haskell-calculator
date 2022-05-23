@@ -45,7 +45,8 @@ parser ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
 					if operatorPrecedence op' > operatorPrecedence op
 						then Right $ OperatorCall (SimpleExpression lhs) op rhs
 						else Right $ OperatorCall
-							(OperatorCall (SimpleExpression lhs) op lhs') op' rhs' 
+							(OperatorCall (SimpleExpression lhs) op lhs') op' rhs'
+				rhs -> Right $ OperatorCall (SimpleExpression lhs) op rhs
 		FactorialOperator -> case listToMaybe $ tail rest of
 			Nothing -> Right $ Factorial lhs
 			Just (TokenInfo pos' tok') -> case tok' of
@@ -59,6 +60,7 @@ parser ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
 								then Right $ OperatorCall (Factorial lhs) op rhs
 								else Right $
 									OperatorCall (OperatorCall (Factorial lhs) op lhs') op' rhs
+						rhs -> Right $ OperatorCall (SimpleExpression lhs) op rhs
 
 -- TODO: FunctionCall, ParenthesisExpression
 -- parser ((TokenInfo _ (TokenFunction function)):rest) = case head rest of 
