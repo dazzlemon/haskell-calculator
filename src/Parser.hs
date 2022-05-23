@@ -36,37 +36,45 @@ parser [TokenInfo pos single] = case single of
 -- complex expressions:
 --   OperatorCall
 --   Factorial
-parser ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
-	TokenInfo pos tok -> case tok of
-		TokenOperator op -> case parser $ tail rest of
-			err@(Left _) -> err
-			Right rhs -> case rhs of
-				EmptyExpression -> Right $ SimpleExpression lhs
-				OperatorCall lhs' op' rhs' ->
-					if operatorPrecedence op' > operatorPrecedence op
-						then Right $ OperatorCall (SimpleExpression lhs) op rhs
-						else Right $ OperatorCall
-							(OperatorCall (SimpleExpression lhs) op lhs') op' rhs'
-				rhs -> Right $ OperatorCall (SimpleExpression lhs) op rhs
-		FactorialOperator -> case listToMaybe $ tail rest of
-			Nothing -> Right $ Factorial lhs
-			Just (TokenInfo pos' tok') -> case tok' of
-				-- drop FactorialOperator and TokenOperator to parse rhs
-				TokenOperator op -> case parser $ drop 2 rest of
-					err@(Left _) -> err
-					Right rhs -> case rhs of
-						EmptyExpression -> Right $ Factorial lhs
-						OperatorCall lhs' op' rhs' ->
-							if operatorPrecedence op' > operatorPrecedence op
-								then Right $ OperatorCall (Factorial lhs) op rhs
-								else Right $
-									OperatorCall (OperatorCall (Factorial lhs) op lhs') op' rhs
-						rhs -> Right $ OperatorCall (SimpleExpression lhs) op rhs
+parser ((TokenInfo p (TokenNumber lhs)):rest) =
+	case getSimpleExpression ((TokenInfo p (TokenNumber lhs)):rest) of
+		(rhs, restTokens) -> Right rhs
 
 -- TODO: FunctionCall, ParenthesisExpression, NegativeExpression
 -- parser ((TokenInfo _ (TokenFunction function)):rest) = case head rest of 
 
 -- expression can start with number, function name or left parenthesis, or minus
 parser ((TokenInfo pos _):_) = Left $ CalculatorParserError UnexpectedToken pos
+
+getSimpleExpression :: [TokenInfo] -> (Expression, [TokenInfo])
+getSimpleExpression [TokenInfo pos (TokenNumber number)] =
+	(SimpleExpression number, [])
+getSimpleExpression ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
+	TokenInfo pos tok -> case tok of
+		TokenOperator op -> case getSimpleExpression $ tail rest of
+			(rhs, restTokens) -> case rhs of
+				EmptyExpression -> (SimpleExpression lhs, restTokens)
+				OperatorCall lhs' op' rhs' ->
+					if operatorPrecedence op' > operatorPrecedence op
+						then (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
+						else ( OperatorCall (OperatorCall (SimpleExpression lhs) op lhs') 
+							                  op' rhs'
+								 , restTokens)
+				rhs -> (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
+		FactorialOperator -> case listToMaybe $ tail rest of
+			Nothing -> (Factorial lhs, [])
+			Just (TokenInfo pos' tok') -> case tok' of
+				-- drop FactorialOperator and TokenOperator to parse rhs
+				TokenOperator op -> case getSimpleExpression $ drop 2 rest of
+					(rhs, restTokens) -> case rhs of
+						EmptyExpression -> (Factorial lhs, restTokens)
+						OperatorCall lhs' op' rhs' ->
+							if operatorPrecedence op' > operatorPrecedence op
+								then (OperatorCall (Factorial lhs) op rhs, restTokens)
+								else ( OperatorCall (OperatorCall (Factorial lhs) op lhs')
+								                    op' rhs
+										 , restTokens)
+						rhs -> (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
+getSimpleExpression rest = (EmptyExpression, rest)
 
 unexpectedToken pos = Left $ CalculatorParserError UnexpectedToken pos

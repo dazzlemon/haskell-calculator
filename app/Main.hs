@@ -47,8 +47,20 @@ main = do -- pretty print version
 					Right tokenList -> do
 						putStr $ showTable
 									 $ tokenInfoListToTable tokenList
-						print $ parser tokenList
-            
+						case ast of
+							Right ast' -> printAst ast' 0
+							_ -> return ()
+						where ast = parser tokenList
+						      printAst ast n = case ast of
+											OperatorCall lhs op rhs -> do
+												putStr $ replicate n '\t'
+												print op
+												printAst lhs (n + 1)
+												printAst rhs (n + 1)
+											SimpleExpression (Number str) -> do
+												putStr $ replicate n '\t'
+												putStrLn str
+											_ -> return ()
 
 tokenInfoListToTable :: [TokenInfo] -> [[String]]
 tokenInfoListToTable = map tokenInfoToRow
