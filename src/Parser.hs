@@ -1,6 +1,12 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Parser where
 
 import Data.Maybe (listToMaybe)
+import Data.Data (Typeable, Data)
+
+import Common
+import Lexer
 
 -- expression ::= number
 data Expression = SimpleExpression Number
@@ -15,57 +21,49 @@ data Expression = SimpleExpression Number
 								| EmptyExpression
                 deriving (Show, Data, Eq)
 
-data ParserError = UnexpectedToken { errorPosition::Int }
-                 | ParserUnexpectedEOF
-
 operatorPrecedence x
 	| x `elem` [Multiply, Divide, Power] = 1
 	| x `elem` [Plus, Minus] = 2
 
-parse :: [TokenInfo] -> Either CalculatorError Expression -- TODO
-
-getExpression :: [TokenInfo] -> Either CalculatorError (Expression, [TokenInfo])
-getExpression [] = Right (EmptyExpression, [])
-getExpression [TokenInfo pos single] = case single of
-	TokenNumber number -> Right (SimpleExpression number, [])
+parser :: [TokenInfo] -> Either CalculatorError Expression
+parser [] = Right EmptyExpression
+-- only number can be the single token in expression
+parser [TokenInfo pos single] = case single of
+	TokenNumber number -> Right $ SimpleExpression number
 	_ -> unexpectedToken pos
-getExpression ((TokenInfo pos first):rest) = case first of
-	TokenNumber number -> case head rest of
-		TokenInfo _ (FactorialOperator fOp) -> Right (Factorial number, tail rest)
-		TokenInfo _ (TokenOperator tOp) -> if tOp `elem` [Plus, Minus]
-			then case getExpression $ tail rest of
-				(s@(SimpleExpression _), rest')
-					-> Right (OperatorCall number tOp s, rest')
-				(oc@(OperatorCall e1 o e2), rest') -- change precedence
-					-> if operatorPrecedence o > operatorPrecedence tOp
-							then Right (OperatorCall number tOp oc, rest')
-							else Right (OperatorCall (OperatorCall number tOp e1) o e2, rest')
-				EmptyExpression -> Left $ CalculatorParserError $ ParserUnexpectedEOF
-				_ -> case parse rest' of -- this is possible because
-				                         -- we have only two levels of precedence
-					err@(Left _) -> err
-					Rigth expression -> Right (OperatorCall number tOp expression, [])
-			else case getExpression $ tail rest of
-				((OperatorCall e1 o e2), rest') -- change precedence to be left to right
-					-> Right (OperatorCall (OperatorCall number tOp e1) o e2, rest')
-				(expression, rest')
-					-> Right (OperatorCall number tOp expression, rest')
-				EmptyExpression -> Left $ CalculatorParserError $ ParserUnexpectedEOF
-		TokenInfo pos _ -> unexpectedToken pos
-	TokenInfo _ (TokenFunction Function) -> case head rest of
-		TokenInfo pos ParenthesisLeft -> case getExpression $ tail rest of
-			Right (expr, rest') -> getFunctionArgs rest' [expr]
+
+-- complex expressions:
+--   OperatorCall
+--   Factorial
+parser ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
+	TokenInfo pos tok -> case tok of
+		TokenOperator op -> case parser $ tail rest of
 			err@(Left _) -> err
-		_ -> unexpectedToken pos
-	TokenInfo _ ParenthesisLeft -> -- TODO: getExpression until hit ParenthesisRight
-	_ -> unexpectedToken pos
+			Right rhs -> case rhs of
+				EmptyExpression -> Right $ SimpleExpression lhs
+				OperatorCall lhs' op' rhs' ->
+					if operatorPrecedence op' > operatorPrecedence op
+						then Right $ OperatorCall (SimpleExpression lhs) op rhs
+						else Right $ OperatorCall
+							(OperatorCall (SimpleExpression lhs) op lhs') op' rhs' 
+		FactorialOperator -> case listToMaybe $ tail rest of
+			Nothing -> Right $ Factorial lhs
+			Just (TokenInfo pos' tok') -> case tok' of
+				-- drop FactorialOperator and TokenOperator to parse rhs
+				TokenOperator op -> case parser $ drop 2 rest of
+					err@(Left _) -> err
+					Right rhs -> case rhs of
+						EmptyExpression -> Right $ Factorial lhs
+						OperatorCall lhs' op' rhs' ->
+							if operatorPrecedence op' > operatorPrecedence op
+								then Right $ OperatorCall (Factorial lhs) op rhs
+								else Right $
+									OperatorCall (OperatorCall (Factorial lhs) op lhs') op' rhs
 
-getFunctionArgs :: [TokenInfo] -> [Expression]
-                -> Either CalculatorError ([Expression], [TokenInfo])
-getFunctionArgs (Comma:rest) args = case getExpression rest of
-	Right (expr, rest') -> getFunctionArgs rest' (expr:args)
-	err@(Left _) -> err
-getFunctionArgs (ParenthesisRight:rest) args = Right (args, rest)
-getFunctionArgs _ _ = unexpectedToken pos
+-- TODO: FunctionCall, ParenthesisExpression
+-- parser ((TokenInfo _ (TokenFunction function)):rest) = case head rest of 
 
-unexpectedToken pos = Left $ CalculatorParserError $ UnexpectedToken pos
+-- expression can start with number, function name or left parenthesis
+parser _ = Left $ CalculatorParserError ParserUnexpectedEOF 0
+
+unexpectedToken pos = Left $ CalculatorParserError UnexpectedToken pos

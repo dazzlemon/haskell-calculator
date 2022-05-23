@@ -6,6 +6,8 @@ import Data.Char (isAlpha, isNumber, isAlphaNum, isSpace)
 import Control.Applicative (liftA2)
 import Data.Maybe (listToMaybe)
 
+import Common
+
 -- digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 -- uint ::= digit{digit}
 -- number ::= ['-'] uint | ([uint]'.'uint)
@@ -50,18 +52,6 @@ data Function = Sine
 							| Root
               deriving (Show, Data, Eq)
 
-data CalculatorError = CalculatorLexerError LexerError
-                     | CalculatorParserError ParserError
-										 | CalculatorEvaluatorError
-                     deriving (Show, Data, Eq)
-						
-data LexerError = UnknownSymbol    { errorPosition::Int }
-                | UnexpectedSymbol { errorPosition::Int
-                                   , expected::String }
-                | UnexpectedEOF    { expected::String }
-								| UnknownWord      { errorPosition::Int }
-                deriving (Show, Data, Eq)
-
 data TokenInfo = TokenInfo { position::Int, token::Token } deriving (Eq, Show)
 
 lexer :: String -> Either CalculatorError [TokenInfo]
@@ -88,20 +78,20 @@ getToken (firstChar:code) position
       Right (TokenInfo _ (TokenNumber (Number positive)), rest) ->
         returnToken (TokenNumber (Number ('-':positive))) rest
       err@(Left _) -> err -- after '.'
-      _ -> returnError (UnexpectedSymbol position "numeric") -- after '-'
+      _ -> returnError (UnexpectedSymbol "numeric") position -- after '-'
     -- +1 -> is '-'; +2 is after '-'
-    Just x -> returnError (UnexpectedSymbol (position + 2) "numeric")
-    _ -> returnError $ UnexpectedEOF "numeric"
+    Just x -> returnError (UnexpectedSymbol "numeric") (position + 2)
+    _ -> returnError (UnexpectedEOF "numeric") 0
   | isSpace firstChar = getToken code (position + 1) -- +1 -> skip char
   | isNumber firstChar || firstChar == '.' = getNumber (firstChar:code) position
   | isAlpha firstChar = case wordToToken word of
           Just token -> returnToken token restAfterWord
-          _ -> returnError (UnknownWord position)
+          _ -> returnError UnknownWord position
   | Just token <- charToToken firstChar = returnToken token code
-  | otherwise = returnError (UnknownSymbol position)
+  | otherwise = returnError UnknownSymbol position
   where returnToken token rest = Right (TokenInfo position token, rest)
         (wordRest, restAfterWord) = span isAlphaNumOrUnderscore code
-        returnError err = Left (CalculatorLexerError err)
+        returnError err pos = Left $ CalculatorLexerError err pos
         word = firstChar:wordRest
 
 charToToken :: Char -> Maybe Token
@@ -128,9 +118,9 @@ wordToToken = flip lookup [ ("sin", TokenFunction Sine)
 -- only accepts positive numbers in formats like: 1, 1.2, .2
 getNumber :: String -> Int -> Either CalculatorError (TokenInfo, String)
 getNumber code position = case afterWhole of
-  "." -> returnError $ UnexpectedEOF "numeric"
+  "." -> returnError (UnexpectedEOF "numeric") 0
   '.':_ -> if null fraction
-    then returnError (UnexpectedSymbol (position + length whole + 1) "numeric")
+    then returnError (UnexpectedSymbol "numeric") (position + length whole + 1)
     else Right 
 			( TokenInfo position (TokenNumber (Number (whole ++ "." ++ fraction)))
 			, afterFraction)
@@ -138,7 +128,7 @@ getNumber code position = case afterWhole of
   where (whole, afterWhole) = span isNumber code
         (fraction, afterFraction) = span isNumber
                                   $ drop 1 afterWhole -- drop '.'
-        returnError err = Left (CalculatorLexerError err)		
+        returnError err pos = Left $ CalculatorLexerError err pos
 
 isAlphaNumOrUnderscore :: Char -> Bool
 isAlphaNumOrUnderscore = liftA2 (||) isAlphaNum (== '_')

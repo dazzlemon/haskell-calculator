@@ -1,6 +1,8 @@
 module Main where
 
 import Lexer
+import Common
+import Parser
 
 import Data.Data (Data(toConstr))
 import Data.List (transpose, elemIndices)
@@ -10,12 +12,12 @@ import ListPadding (rpad, lpad)
 import System.Environment
 
 main = do -- pretty print version
-  args <- getArgs
-  if length args /= 1 then print "Only one argument allowed"
-                      else calculator $ head args
-  where calculator code = case lexer code of
+	args <- getArgs
+	if length args /= 1 then print "Only one argument allowed"
+	                    else calculator $ head args
+	where calculator code = case lexer code of
 					Left err -> case err of
-						CalculatorLexerError lexErr -> do
+						CalculatorLexerError lexErr _ -> do
 							putStrLn $ "Error: " ++ constrString
 							-- UnexpectedEOF only happens at the end of file))
 							when (constrString /= "UnexpectedEOF") $
@@ -33,7 +35,7 @@ main = do -- pretty print version
 							      line = takeWhile (/= '\n')
 							      			$ drop lineStart code -- drop lines before 
 							      arrow = lpad (charInLinePos + 1) ' ' "^"
-							      offset = errorPosition lexErr
+							      offset = errorPosition err
 							      linesStarts = 0:map (+1) ( drop 1 -- no line after last '\n'
 							      																	-- 0 - start of first line
 							      													$ elemIndices '\n'
@@ -42,9 +44,11 @@ main = do -- pretty print version
 							      charInLinePos = offset - lineStart
 							      lineNumber = length linesStarts
 						_ -> print "TODO: other error"
-					Right tokenList -> putStr
-													 $ showTable
-													 $ tokenInfoListToTable tokenList
+					Right tokenList -> do
+						putStr $ showTable
+									 $ tokenInfoListToTable tokenList
+						print $ parser tokenList
+            
 
 tokenInfoListToTable :: [TokenInfo] -> [[String]]
 tokenInfoListToTable = map tokenInfoToRow
