@@ -19,6 +19,7 @@ data Expression = SimpleExpression Number
 --              | uint '!'
 								| Factorial Number
 								| EmptyExpression
+								| NegativeExpression Expression
                 deriving (Show, Data, Eq)
 
 operatorPrecedence x
@@ -62,10 +63,10 @@ parser ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
 									OperatorCall (OperatorCall (Factorial lhs) op lhs') op' rhs
 						rhs -> Right $ OperatorCall (SimpleExpression lhs) op rhs
 
--- TODO: FunctionCall, ParenthesisExpression
+-- TODO: FunctionCall, ParenthesisExpression, NegativeExpression
 -- parser ((TokenInfo _ (TokenFunction function)):rest) = case head rest of 
 
--- expression can start with number, function name or left parenthesis
-parser _ = Left $ CalculatorParserError ParserUnexpectedEOF 0
+-- expression can start with number, function name or left parenthesis, or minus
+parser ((TokenInfo pos _):_) = Left $ CalculatorParserError UnexpectedToken pos
 
 unexpectedToken pos = Left $ CalculatorParserError UnexpectedToken pos

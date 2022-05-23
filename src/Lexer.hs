@@ -10,7 +10,7 @@ import Common
 
 -- digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 -- uint ::= digit{digit}
--- number ::= ['-'] uint | ([uint]'.'uint)
+-- number ::= uint | ([uint]'.'uint)
 
 -- operator ::= '+' | '-' | '*' | '/' | '^'
 
@@ -70,18 +70,6 @@ lexer' expression position tokens = case getToken expression position of
 getToken :: String -> Int -> Either CalculatorError (TokenInfo, String)
 getToken [] position = Right (TokenInfo position TokenEOF, [])
 getToken (firstChar:code) position
-  | firstChar == '-' = case listToMaybe code of
-    -- TODO: cleanup this branch
-    -- +1 because skipping '-'
-    Just x | isNumber x || x == '.' -> case getNumber code (position + 1) of
-      -- don't care for the position, because it starts where we said it to
-      Right (TokenInfo _ (TokenNumber (Number positive)), rest) ->
-        returnToken (TokenNumber (Number ('-':positive))) rest
-      err@(Left _) -> err -- after '.'
-      _ -> returnError (UnexpectedSymbol "numeric") position -- after '-'
-    -- +1 -> is '-'; +2 is after '-'
-    Just x -> returnError (UnexpectedSymbol "numeric") (position + 2)
-    _ -> returnError (UnexpectedEOF "numeric") 0
   | isSpace firstChar = getToken code (position + 1) -- +1 -> skip char
   | isNumber firstChar || firstChar == '.' = getNumber (firstChar:code) position
   | isAlpha firstChar = case wordToToken word of
