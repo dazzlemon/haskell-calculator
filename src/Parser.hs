@@ -43,6 +43,25 @@ parser ((TokenInfo p (TokenNumber lhs)):rest) =
 -- TODO: FunctionCall, ParenthesisExpression, NegativeExpression
 -- parser ((TokenInfo _ (TokenFunction function)):rest) = case head rest of 
 
+parser ((TokenInfo pos ParenthesisLeft):rest) =
+	case getSimpleExpression rest of
+		(expr, restTokens) -> case listToMaybe restTokens of
+			Just (TokenInfo _ tok) -> case tok of
+				ParenthesisRight -> case listToMaybe $ tail restTokens of
+					Nothing -> Right $ ParenthesisExpression expr
+					Just (TokenInfo _ tok') -> case tok' of
+						TokenOperator op -> case getSimpleExpression $ drop 2 restTokens of
+							(rhs, restTokens') -> case rhs of
+								EmptyExpression -> Right $ ParenthesisExpression expr
+								OperatorCall lhs' op' rhs' ->
+									if operatorPrecedence op' > operatorPrecedence op
+										then Right $ OperatorCall
+											(OperatorCall (ParenthesisExpression expr) op lhs')
+											op' rhs
+										else Right $ OperatorCall (ParenthesisExpression expr) op rhs
+			Nothing -> Left $ CalculatorParserError ParserUnexpectedEOF 0
+			_ -> Left $ CalculatorParserError UnexpectedToken pos
+
 -- expression can start with number, function name or left parenthesis, or minus
 parser ((TokenInfo pos _):_) = Left $ CalculatorParserError UnexpectedToken pos
 
