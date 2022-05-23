@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Lib
+      ListPadding
   other-modules:
       Paths_haskell_calculator
   hs-source-dirs:
