@@ -56,10 +56,10 @@ getSimpleExpression ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
 				EmptyExpression -> (SimpleExpression lhs, restTokens)
 				OperatorCall lhs' op' rhs' ->
 					if operatorPrecedence op' > operatorPrecedence op
-						then (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
-						else ( OperatorCall (OperatorCall (SimpleExpression lhs) op lhs') 
+						then ( OperatorCall (OperatorCall (SimpleExpression lhs) op lhs') 
 							                  op' rhs'
 								 , restTokens)
+						else (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
 				rhs -> (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
 		FactorialOperator -> case listToMaybe $ tail rest of
 			Nothing -> (Factorial lhs, [])
@@ -70,10 +70,10 @@ getSimpleExpression ((TokenInfo _ (TokenNumber lhs)):rest) = case head rest of
 						EmptyExpression -> (Factorial lhs, restTokens)
 						OperatorCall lhs' op' rhs' ->
 							if operatorPrecedence op' > operatorPrecedence op
-								then (OperatorCall (Factorial lhs) op rhs, restTokens)
-								else ( OperatorCall (OperatorCall (Factorial lhs) op lhs')
+								then ( OperatorCall (OperatorCall (Factorial lhs) op lhs')
 								                    op' rhs
 										 , restTokens)
+								else (OperatorCall (Factorial lhs) op rhs, restTokens)
 						rhs -> (OperatorCall (SimpleExpression lhs) op rhs, restTokens)
 getSimpleExpression rest = (EmptyExpression, rest)
 
