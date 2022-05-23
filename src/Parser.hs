@@ -52,9 +52,20 @@ getExpression ((TokenInfo pos first):rest) = case first of
 					-> Right (OperatorCall number tOp expression, rest')
 				EmptyExpression -> Left $ CalculatorParserError $ ParserUnexpectedEOF
 		TokenInfo pos _ -> unexpectedToken pos
-	TokenFunction Function ->
-		-- TODO: take Comma and Expression until hit ParenthesisRight
-  ParenthesisLeft -> -- TODO: getExpression until hit ParenthesisRight
+	TokenInfo _ (TokenFunction Function) -> case head rest of
+		TokenInfo pos ParenthesisLeft -> case getExpression $ tail rest of
+			Right (expr, rest') -> getFunctionArgs rest' [expr]
+			err@(Left _) -> err
+		_ -> unexpectedToken pos
+	TokenInfo _ ParenthesisLeft -> -- TODO: getExpression until hit ParenthesisRight
 	_ -> unexpectedToken pos
+
+getFunctionArgs :: [TokenInfo] -> [Expression]
+                -> Either CalculatorError ([Expression], [TokenInfo])
+getFunctionArgs (Comma:rest) args = case getExpression rest of
+	Right (expr, rest') -> getFunctionArgs rest' (expr:args)
+	err@(Left _) -> err
+getFunctionArgs (ParenthesisRight:rest) args = Right (args, rest)
+getFunctionArgs _ _ = unexpectedToken pos
 
 unexpectedToken pos = Left $ CalculatorParserError $ UnexpectedToken pos
