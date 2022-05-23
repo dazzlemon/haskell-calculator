@@ -14,17 +14,6 @@ import Data.Maybe (listToMaybe)
 
 -- function ::= 'sin' | 'cos' | 'tan' | 'cot' | 'sqrt' | 'root'
 
--- factorial ::= uint '!'
-
--- expression ::= expression operator expression
---              | function '(' expression{ ',' expression } ')'
---              | number
---              | '(' expression ')'
-
-operatorPrecedence x 
-	| x `elem` ['*', '/', '^'] = 1
-	| x `elem` ['+', '-'] = 2
-
 data Token = TokenNumber Number
            | TokenOperator Operator
 					 | TokenFunction Function
@@ -32,6 +21,7 @@ data Token = TokenNumber Number
            | ParenthesisRight
 					 | Comma
 					 | TokenEOF
+           | FactorialOperator
            deriving (Show, Data, Eq)
 
 tokenLength :: Token -> Int
@@ -60,14 +50,8 @@ data Function = Sine
 							| Root
               deriving (Show, Data, Eq)
 
-data Expression = SimpleExpression Number
-                | ParenthesisExpression Expression
-								| FunctionCall Function [Expression]
-								| OperatorCall Expression Operator Expression
-                deriving (Show, Data, Eq)
-
 data CalculatorError = CalculatorLexerError LexerError
-                     | CalculatorParserError
+                     | CalculatorParserError ParserError
 										 | CalculatorEvaluatorError
                      deriving (Show, Data, Eq)
 						
@@ -129,6 +113,7 @@ charToToken = flip lookup [ ('(', ParenthesisLeft)
 							            , ('/', TokenOperator Divide)
 							            , ('^', TokenOperator Power)
 													, (',', Comma)
+                          , ('!', FactorialOperator)
                           ]
 
 wordToToken :: String -> Maybe Token
