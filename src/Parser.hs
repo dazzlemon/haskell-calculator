@@ -37,38 +37,39 @@ parser tokens = case listToMaybe tokens of
 parser' :: Expression -> [Token] -> Either CalculatorError (Expression, [Token])
 parser' lhs rest = case listToMaybe rest of
 	Nothing -> Right (lhs, [])
-	Just (TokenOperator op) -> case listToMaybe $ tail rest of
-		-- operator doesn't have rhs
-		Nothing -> Left $ CalculatorParserError UnexpectedToken 0
-		Just (TokenNumber rhs) -> case listToMaybe $ drop 2 rest of
-			Nothing -> Right (OperatorCall lhs op (SimpleExpression rhs), [])
-			Just (TokenOperator op') ->
-				if operatorPrecedence op <= operatorPrecedence op'
-					then parser' (OperatorCall lhs op (SimpleExpression rhs)) (drop 2 rest)
-					else case subExp of
-						Left err -> Left err
-						Right (rhs', rest') -> parser' (OperatorCall lhs op rhs') rest'
-					where subExp = parseUntilPrecedence (operatorPrecedence op) (SimpleExpression rhs) (drop 2 rest)
-			_ -> Left $ CalculatorParserError UnexpectedToken 0
-		_ -> Left $ CalculatorParserError UnexpectedToken 0
+	Just (TokenOperator op) -> operatorLookahead lhs op rest parseSecondOperator
 	_ -> Left $ CalculatorParserError UnexpectedToken 0
+	where parseSecondOperator lhs op rhs op' rest =
+		if operatorPrecedence op <= operatorPrecedence op'
+			then parser' (OperatorCall lhs op (SimpleExpression rhs)) (drop 2 rest)
+			else case subExp of
+				Left err -> Left err
+				Right (rhs', rest') -> parser' (OperatorCall lhs op rhs') rest'
+			where subExp = parseUntilPrecedence (operatorPrecedence op) (SimpleExpression rhs) (drop 2 rest)
 
 parseUntilPrecedence :: Int -> Expression -> [Token]
                      -> Either CalculatorError (Expression, [Token])
 parseUntilPrecedence n lhs rest = case listToMaybe rest of
 	Nothing -> Right (lhs, [])
-	Just (TokenOperator op) -> if operatorPrecedence op >= n
-					then Right (lhs, rest)
-					else case listToMaybe $ tail rest of
-		-- operator doesn't have rhs
-						Nothing -> Left $ CalculatorParserError UnexpectedToken 0
-						Just (TokenNumber rhs) -> case listToMaybe $ drop 2 rest of
-							Nothing -> Right (OperatorCall lhs op (SimpleExpression rhs), [])
-							Just (TokenOperator op') ->
-								if operatorPrecedence op <= operatorPrecedence op'
-									then parseUntilPrecedence n (OperatorCall lhs op (SimpleExpression rhs)) (drop 2 rest)
-									else Right (lhs, rest)
-						_ -> Left $ CalculatorParserError UnexpectedToken 0
+	Just (TokenOperator op) | operatorPrecedence op >= n -> Right (lhs, rest)
+	Just (TokenOperator op) -> operatorLookahead lhs op rest parseSecondOperator
+	_ -> Left $ CalculatorParserError UnexpectedToken 0
+	where parseSecondOperator lhs op rhs op' rest =
+		if operatorPrecedence op <= operatorPrecedence op'
+			then parseUntilPrecedence n (OperatorCall lhs op (SimpleExpression rhs)) (drop 2 rest)
+			else Right (lhs, rest)
+
+operatorLookahead :: Expression -> Operator -> [Token]
+                  -> (Expression -> Operator -> Number -> Operator -> [Token]
+										             -> Either CalculatorError (Expression, [Token]))
+									-> Either CalculatorError (Expression, [Token])
+operatorLookahead lhs op rest parseSecondOperator = case listToMaybe $ tail rest of
+	-- operator doesn't have rhs
+	Nothing -> Left $ CalculatorParserError UnexpectedToken 0
+	Just (TokenNumber rhs) -> case listToMaybe $ drop 2 rest of
+		Nothing -> Right (OperatorCall lhs op (SimpleExpression rhs), [])
+		Just (TokenOperator op') -> parseSecondOperator lhs op rhs op' rest
+		_ -> Left $ CalculatorParserError UnexpectedToken 0
 	_ -> Left $ CalculatorParserError UnexpectedToken 0
 
 -- 1) operator precedence
