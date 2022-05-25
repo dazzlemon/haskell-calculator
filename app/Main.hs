@@ -50,7 +50,8 @@ main = do -- pretty print version
 						case ast of
 							Right ast' -> printAst ast' 0
 							_ -> return ()
-						where ast = parser tokenList
+						print ast
+						where ast = parser $ map token tokenList
 						      printAst ast n = case ast of
 											OperatorCall lhs op rhs -> do
 												putStr $ replicate n '\t'
